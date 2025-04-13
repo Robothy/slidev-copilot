@@ -1,6 +1,6 @@
 # Slidev Copilot for VS Code
 
-<!-- ![Slidev Copilot Logo](media/icon.svg) -->
+<!-- ![Slidev Copilot Logo](media/icon.png) -->
 
 A Visual Studio Code extension that uses AI to generate [Slidev](https://sli.dev/) presentations directly from your chat context.
 
