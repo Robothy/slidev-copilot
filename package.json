@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/slidev-copilot"
+    "url": "https://github.com/robothy/slidev-copilot"
   },
   "engines": {
     "vscode": "^1.92.0"

@@ -39,7 +39,8 @@ jobs:
       run: npm run package
       
     - name: Upload artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: vsix-package
+        name: slidev-copilot.vsix
         path: out/*.vsix
+        compression-level: 0

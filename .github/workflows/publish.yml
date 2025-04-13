@@ -9,11 +9,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
+      with:
+        # Need to fetch history for proper version bumping and committing
+        fetch-depth: 0
     
     - name: Setup Node.js
       uses: actions/setup-node@v3
       with:
-        node-version: 20
+        node-version: 16
     
     - name: Cache node modules
       uses: actions/cache@v3
@@ -25,6 +28,15 @@ jobs:
     
     - name: Install dependencies
       run: npm ci
+    
+    # Update version to match release tag
+    - name: Update version in package.json
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/}
+        VERSION=${VERSION#v}
+        # If version in package.json doesn't match the tag, update it
+        npm version $VERSION --no-git-tag-version
+        echo "New version: $(grep -m1 version package.json | cut -d\" -f4)"
     
     - name: Run linting
       run: npm run lint
@@ -44,3 +56,15 @@ jobs:
         pat: ${{ secrets.VSCE_PAT }}
         registryUrl: https://marketplace.visualstudio.com
         packagePath: "./out/slidev-copilot-${{ github.event.release.tag_name }}.vsix"
+    
+    # Bump patch version for next development cycle
+    - name: Bump patch version for next development cycle
+      run: |
+        git config --global user.name 'GitHub Actions'
+        git config --global user.email 'github-actions@github.com'
+        npm version patch --no-git-tag-version
+        NEW_VERSION=$(grep -m1 version package.json | cut -d\" -f4)
+        echo "Bumped version to $NEW_VERSION for next development cycle"
+        git add package.json
+        git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
+        git push
