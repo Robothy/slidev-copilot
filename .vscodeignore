@@ -9,9 +9,10 @@ src/**
 **/*.ts
 .git/**
 node_modules/**
-out/test/**
+out/**
 test/**
 .yarnrc
 webpack.config.js
 vsc-extension-quickstart.md
 **/*.vsix
+!dist/**

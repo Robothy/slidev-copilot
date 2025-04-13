@@ -158,7 +158,7 @@ export class SlidevChatParticipant {
         const participant = vscode.chat.createChatParticipant('slidev-copilot', handler);
                 
         // Set the icon path
-        const iconPath = path.join(context.extensionPath, 'media', 'slidev-icon.svg');
+        const iconPath = path.join(context.extensionPath, 'media', 'icon.svg');
         this.logger.debug('Setting icon path:', iconPath);
                 
         if (fs.existsSync(iconPath)) {
