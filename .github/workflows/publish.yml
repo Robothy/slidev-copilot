@@ -72,11 +72,11 @@ jobs:
         echo "VSIX_PATH=./out/slidev-copilot-v${{ steps.new_version.outputs.version }}.vsix" >> $GITHUB_ENV
     
     - name: Publish to Visual Studio Marketplace
-      uses: HaaLeo/publish-vscode-extension@v1
+      uses: HaaLeo/publish-vscode-extension@v2
       with:
         pat: ${{ secrets.VSCE_PAT }}
         registryUrl: https://marketplace.visualstudio.com
-        packagePath: ${{ env.VSIX_PATH }}
+        extensionFile: ${{ env.VSIX_PATH }}
     
     # Create git tag and push changes
     - name: Create git tag and push changes
@@ -106,7 +106,7 @@ jobs:
     
     # Create GitHub Release
     - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: v${{ steps.new_version.outputs.version }}
         name: Release v${{ steps.new_version.outputs.version }}
