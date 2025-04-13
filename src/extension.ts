@@ -8,8 +8,18 @@ import { SessionManager } from './utils/sessionManager';
 const logger = Logger.getInstance();
 
 export function activate(context: vscode.ExtensionContext) {
-  // Set to Debug level for more verbose logging during troubleshooting
-  Logger.setLevel(LogLevel.Debug);
+  // Load log level from configuration
+  Logger.loadLogLevelFromConfig();
+    
+  // Register a configuration change listener
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration(event => {
+      if (event.affectsConfiguration('slidev-copilot.logLevel')) {
+        logger.info('Log level configuration changed, updating...');
+        Logger.loadLogLevelFromConfig();
+      }
+    })
+  );
     
   // Show the output channel automatically to see logs during debugging
   logger.show();
