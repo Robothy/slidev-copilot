@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       releaseType:
-        description: 'Release type (patch, minor, major)'
+        description: 'Next version increment type (patch, minor, major)'
         required: true
         default: 'patch'
         type: choice
@@ -38,18 +38,10 @@ jobs:
     - name: Install dependencies
       run: npm ci
     
+    # Get current version to use for release
     - name: Get current version
       id: current_version
       run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
-    
-    # Bump version according to input
-    - name: Update version in package.json
-      id: new_version
-      run: |
-        npm version ${{ github.event.inputs.releaseType }} --no-git-tag-version
-        NEW_VERSION=$(node -p "require('./package.json').version")
-        echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-        echo "Updated version to $NEW_VERSION"
     
     - name: Run linting
       run: npm run lint
@@ -69,30 +61,18 @@ jobs:
     - name: Package extension
       run: |
         npm run package
-        echo "VSIX_PATH=./out/slidev-copilot-v${{ steps.new_version.outputs.version }}.vsix" >> $GITHUB_ENV
-    
-    - name: Publish to Visual Studio Marketplace
-      uses: HaaLeo/publish-vscode-extension@v2
-      with:
-        pat: ${{ secrets.VSCE_PAT }}
-        registryUrl: https://marketplace.visualstudio.com
-        extensionFile: ${{ env.VSIX_PATH }}
-    
-    # Create git tag and push changes
-    - name: Create git tag and push changes
-      run: |
-        git config --global user.name 'GitHub Actions'
-        git config --global user.email 'github-actions@github.com'
-        git add package.json
-        git commit -m "chore: release v${{ steps.new_version.outputs.version }}"
-        git tag -a v${{ steps.new_version.outputs.version }} -m "Release v${{ steps.new_version.outputs.version }}"
-        git push && git push --tags
+        echo "VSIX_PATH=./out/slidev-copilot-v${{ steps.current_version.outputs.version }}.vsix" >> $GITHUB_ENV
     
     # Generate changelog
     - name: Generate changelog
       id: changelog
       run: |
-        PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+        # Find the previous tag
+        PREVIOUS_TAG=$(git describe --tags --abbrev=0 --match "v*" HEAD^ 2>/dev/null || echo "")
+        CURRENT_TAG="v${{ steps.current_version.outputs.version }}"
+        
+        echo "Generating changelog from $PREVIOUS_TAG to $CURRENT_TAG"
+        
         if [ -z "$PREVIOUS_TAG" ]; then
           # If there's no previous tag, get all commits
           CHANGELOG=$(git log --pretty=format:"- %s" --no-merges)
@@ -104,12 +84,27 @@ jobs:
         echo "$CHANGELOG" >> $GITHUB_ENV
         echo "EOF" >> $GITHUB_ENV
     
-    # Create GitHub Release
+    - name: Publish to Visual Studio Marketplace
+      uses: HaaLeo/publish-vscode-extension@v2
+      with:
+        pat: ${{ secrets.VSCE_PAT }}
+        registryUrl: https://marketplace.visualstudio.com
+        extensionFile: ${{ env.VSIX_PATH }}
+    
+    # Create git tag for the current version
+    - name: Create git tag for current version
+      run: |
+        git config --global user.name 'GitHub Actions'
+        git config --global user.email 'github-actions@github.com'
+        git tag -a v${{ steps.current_version.outputs.version }} -m "Release v${{ steps.current_version.outputs.version }}"
+        git push --tags
+    
+    # Create GitHub Release for current version
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v${{ steps.new_version.outputs.version }}
-        name: Release v${{ steps.new_version.outputs.version }}
+        tag_name: v${{ steps.current_version.outputs.version }}
+        name: Release v${{ steps.current_version.outputs.version }}
         body: |
           ## What's Changed
           ${{ env.CHANGELOG }}
@@ -117,3 +112,17 @@ jobs:
         files: ${{ env.VSIX_PATH }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    # NOW bump version for the next development cycle
+    - name: Bump version for next development cycle
+      run: |
+        npm version ${{ github.event.inputs.releaseType }} --no-git-tag-version
+        NEW_VERSION=$(node -p "require('./package.json').version")
+        echo "Bumped version from ${{ steps.current_version.outputs.version }} to $NEW_VERSION for next development cycle"
+    
+    # Commit the version bump
+    - name: Commit version bump
+      run: |
+        git add package.json
+        git commit -m "chore: bump version to $(node -p "require('./package.json').version") [skip ci]"
+        git push
