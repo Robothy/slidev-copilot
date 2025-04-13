@@ -2,7 +2,7 @@
  * Represents a parsed response from the language model chat
  * Contains the processed markdown content, summary, and validation status
  */
-export class ChatResponse {
+export class SlidevChatResponse {
   /**
    * The processed markdown content from the language model
    */
@@ -31,15 +31,15 @@ export class ChatResponse {
     content: string;
     summary: string;
     isValid: boolean;
-  }): ChatResponse {
-    return new ChatResponse(obj.content, obj.summary, obj.isValid);
+  }): SlidevChatResponse {
+    return new SlidevChatResponse(obj.content, obj.summary, obj.isValid);
   }
 
   /**
    * Creates an invalid ChatResponse with an error message
    */
-  public static createInvalid(errorMessage: string): ChatResponse {
-    return new ChatResponse(
+  public static createInvalid(errorMessage: string): SlidevChatResponse {
+    return new SlidevChatResponse(
       `Failed to generate valid Slidev markdown: ${errorMessage}`,
       "Generation failed",
       false

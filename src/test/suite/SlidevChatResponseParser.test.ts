@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ChatResponseParser } from '../../model/ChatResponseParser';
-import { ChatResponse } from '../../model/ChatResponse';
+import { ChatResponseParser } from '../../model/SlidevChatResponseParser';
+import { SlidevChatResponse } from '../../model/SlidevChatResponse';
 
 describe('ChatResponseParser Tests', () => {
   let parser: ChatResponseParser;
@@ -31,7 +31,7 @@ This is a sample presentation with two slides
 
     const result = parser.parse(validMarkdown);
 
-    expect(result).toBeInstanceOf(ChatResponse);
+    expect(result).toBeInstanceOf(SlidevChatResponse);
     expect(result.isValid).toBe(true);
     expect(result.summary).toBe('This is a sample presentation with two slides');
     expect(result.content.includes('# Slide 1')).toBe(true);

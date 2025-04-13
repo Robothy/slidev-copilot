@@ -5,6 +5,7 @@ import * as fs from 'fs';
 import { SlidevGenerator } from './slidevGenerator';
 import { Logger } from './utils/logger';
 import { SessionManager } from './utils/sessionManager';
+import { SlidevChatResponse } from './model/SlidevChatResponse';
 
 export class SlidevChatParticipant {
   private readonly slidevGenerator: SlidevGenerator;
@@ -77,7 +78,7 @@ export class SlidevChatParticipant {
 
           // Generate Slidev markdown using the model from the request
           // Pass the entire request object to use references in prompt generation
-          const slidevResult = await this.slidevGenerator.generateSlidevMarkdown(
+          const slidevResult: SlidevChatResponse = await this.slidevGenerator.generateSlidevMarkdown(
             request.prompt,
             context,
             request.model,
@@ -92,13 +93,10 @@ export class SlidevChatParticipant {
             return;
           }
 
-          const slidevMarkdown = slidevResult.content;
-          const summary = slidevResult.summary;
-                    
-          // Handle valid vs. invalid markdown content
+          // Handle ChatResponse object returned by SlidevGenerator
           if (slidevResult.isValid) {
             // Save to temp file for valid content
-            const tempFilePath = await this.saveTempMarkdown(slidevMarkdown);
+            const tempFilePath = await this.saveTempMarkdown(slidevResult.content);
             this.logger.info('Saved temporary markdown file at:', tempFilePath);
                         
             // Update session with the presentation path and content
@@ -110,7 +108,7 @@ export class SlidevChatParticipant {
                         
             // Return response with complete markdown and summary
             this.logger.debug('Returning response with complete content');
-            stream.markdown(`${summary}\n\n`);
+            stream.markdown(`${slidevResult.summary}\n\n`);
 
             if (!existingSessionId) {
               // If this is a new session, include the session ID marker in the response

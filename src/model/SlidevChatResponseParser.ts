@@ -1,5 +1,5 @@
 import { Logger } from '../utils/logger';
-import { ChatResponse } from './ChatResponse';
+import { SlidevChatResponse } from './SlidevChatResponse';
 
 /**
  * Parser for AI-generated chat responses that extracts and validates Slidev markdown
@@ -16,7 +16,7 @@ export class ChatResponseParser {
    * @param markdownContent The raw markdown content from the language model
    * @returns A ChatResponse object with parsed content, summary, and validation status
    */
-  public parse(markdownContent: string): ChatResponse {
+  public parse(markdownContent: string): SlidevChatResponse {
     try {
       this.logger.debug('Parsing AI response, length:', markdownContent.length);
 
@@ -48,14 +48,14 @@ export class ChatResponseParser {
 
         // Process the response to ensure it's valid Slidev markdown
         const finalContent = this.processMarkdownResponse(processedMarkdown);
-        return new ChatResponse(finalContent, summary, true);
+        return new SlidevChatResponse(finalContent, summary, true);
       } else {
         this.logger.warn('Received invalid Slidev markdown from language model');
-        return new ChatResponse(markdownContent, summary, false);
+        return new SlidevChatResponse(markdownContent, summary, false);
       }
     } catch (error) {
       this.logger.error('Error parsing AI response:', error);
-      return ChatResponse.createInvalid(`Error parsing response: ${error instanceof Error ? error.message : String(error)}`);
+      return SlidevChatResponse.createInvalid(`Error parsing response: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
