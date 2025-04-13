@@ -61,7 +61,9 @@ jobs:
     - name: Package extension
       run: |
         npm run package
-        echo "VSIX_PATH=./out/slidev-copilot-v${{ steps.current_version.outputs.version }}.vsix" >> $GITHUB_ENV
+        # The vsce tool creates a file with format: {name}-{version}.vsix
+        echo "VSIX_PATH=./out/slidev-copilot-${{ steps.current_version.outputs.version }}.vsix" >> $GITHUB_ENV
+        ls -la ./out/
     
     # Generate changelog
     - name: Generate changelog
