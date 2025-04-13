@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { Logger, LogLevel } from './utils/logger';
 import { SlidevChatParticipant } from './chatProvider';
+import { SlidevCli } from './utils/slidevCli';
+import { SessionManager } from './utils/sessionManager';
 
 // Initialize logger
 const logger = Logger.getInstance();
@@ -24,12 +26,29 @@ export function activate(context: vscode.ExtensionContext) {
         logger.debug('VSCode version:', vscode.version);
         logger.debug('VSCode API version:', `${vscode.version}`);
         
+        // Initialize SessionManager
+        logger.debug('Initializing SessionManager...');
+        const sessionManager = SessionManager.getInstance();
+        sessionManager.initialize(context);
+        logger.debug('SessionManager initialized');
+        
+        // Initialize Slidev CLI
+        const slidevCli = new SlidevCli();
+        context.subscriptions.push({ dispose: () => slidevCli.dispose() });
+        
+        // Check Slidev installation when the extension activates
+        slidevCli.checkSlidevInstallation().then(isInstalled => {
+            logger.info('Slidev installation status:', isInstalled ? 'installed' : 'not installed');
+        }).catch(error => {
+            logger.error('Error checking Slidev installation:', error);
+        });
+        
         // Log registration of chat participant
         logger.info('Registering Slidev Copilot chat participant...');
         const chatParticipant = new SlidevChatParticipant(context);
         logger.info('Slidev Copilot chat participant registered successfully');
         
-        // Log registration of save command
+        // Register save command
         logger.info('Registering save command...');
         context.subscriptions.push(
             vscode.commands.registerCommand('slidev-copilot.saveSlides', async (filePath: string) => {
@@ -61,7 +80,36 @@ export function activate(context: vscode.ExtensionContext) {
                 }
             })
         );
-        logger.info('Save command registered successfully');
+        
+        // Register preview command
+        logger.info('Registering preview command...');
+        context.subscriptions.push(
+            vscode.commands.registerCommand('slidev-copilot.previewSlides', async (filePath: string) => {
+                logger.debug('Preview command triggered with file path:', filePath);
+                
+                try {
+                    await slidevCli.startSlidevServer(filePath);
+                } catch (error) {
+                    logger.error('Error starting Slidev server:', error);
+                    vscode.window.showErrorMessage(`Failed to start Slidev server: ${error instanceof Error ? error.message : String(error)}`);
+                }
+            })
+        );
+        
+        // Register export command
+        logger.info('Registering export command...');
+        context.subscriptions.push(
+            vscode.commands.registerCommand('slidev-copilot.exportSlides', async (filePath: string) => {
+                logger.debug('Export command triggered with file path:', filePath);
+                
+                try {
+                    await slidevCli.exportToPdf(filePath);
+                } catch (error) {
+                    logger.error('Error exporting to PDF:', error);
+                    vscode.window.showErrorMessage(`Failed to export to PDF: ${error instanceof Error ? error.message : String(error)}`);
+                }
+            })
+        );
         
         // Log successful activation
         logger.info('✅ Slidev Copilot extension activated successfully');

@@ -1,44 +1,64 @@
 import * as vscode from 'vscode';
 import { Logger } from './utils/logger';
-import { getEnhancedPrompt } from './utils/promptUtils';
+import { PromptBuilder } from './utils/promptBuilder';
 
 export class SlidevGenerator {
     private readonly logger: Logger;
+    private readonly promptBuilder: PromptBuilder;
 
     constructor() {
         this.logger = Logger.getInstance();
+        this.promptBuilder = new PromptBuilder();
     }
-    
+
     async generateSlidevMarkdown(
         userPrompt: string,
         context: vscode.ChatContext,
         model: vscode.LanguageModelChat,
-        token: vscode.CancellationToken
-    ): Promise<string> {
+        token: vscode.CancellationToken,
+        request?: vscode.ChatRequest
+    ): Promise<{ content: string; summary: string; isValid: boolean }> {
         try {
             this.logger.debug('Starting Slidev markdown generation');
             this.logger.debug('User prompt:', userPrompt);
-            
+
             this.logger.info(`Using model: ${model.name} (Vendor: ${model.vendor}, Family: ${model.family})`);
 
-            // Get the chat context and augment the prompt with Slidev syntax information
-            this.logger.debug('Extracting context from chat history');
-            const contextText = await this.getContextText(context);
-            this.logger.debug('Context text length:', contextText.length);
-            
-            // Use the simpler approach with promptUtils instead of Prompt TSX
-            this.logger.debug('Creating enhanced prompt with Slidev syntax information');
-            const enhancedPrompt = getEnhancedPrompt(userPrompt, contextText);
-            this.logger.debug('Enhanced prompt created');
-
-            // Create messages for the language model
-            const messages = [
-                vscode.LanguageModelChatMessage.User(enhancedPrompt)
-            ];
-
             try {
+                // Use the new PromptBuilder to create structured prompts
+                let messages: vscode.LanguageModelChatMessage[];
+
+                if (request) {
+                    // If request is provided, use it to build a structured prompt with references
+                    this.logger.debug('Building structured prompt with references');
+                    messages = await this.promptBuilder.buildSlidevPrompt(request, context, model, token);
+                } else {
+                    // Fallback to using just the user prompt if request is not provided
+                    this.logger.debug('Building simple prompt without references');
+                    messages = [
+                        vscode.LanguageModelChatMessage.User(
+                            `Create a Slidev presentation about: ${userPrompt}\n\nInclude proper frontmatter, clear slide separators (---), and well-organized content. After the presentation, provide a brief summary of what you created.`
+                        )
+                    ];
+                }
+
                 // Send the request to the model
-                this.logger.debug('Sending request to the model');
+                this.logger.debug(`Sending request to the model with ${messages.length} messages`);
+
+                let fullPrompt = '';
+                for (const message of messages) {
+                    fullPrompt += message.content.map(c => {
+                        if (c instanceof vscode.LanguageModelTextPart) {
+                            return c.value;
+                        } else if (c instanceof vscode.LanguageModelToolCallPart) {
+                            return c.name;
+                        } else if (c instanceof vscode.LanguageModelToolResultPart) {
+                            return c.callId;
+                        }
+                    }).join('\n\n') + '\n\n';
+                }
+                this.logger.debug('Full prompt sent to the model:', fullPrompt);
+
                 const response = await model.sendRequest(messages, {}, token);
 
                 if (token.isCancellationRequested) {
@@ -48,20 +68,61 @@ export class SlidevGenerator {
 
                 this.logger.info('Successfully received response from the model');
                 let markdownContent = '';
-                
+
                 // Extract the text from the response
                 for await (const fragment of response.text) {
                     markdownContent += fragment;
                 }
                 
-                // Process the response to ensure it's valid Slidev markdown
-                return this.processMarkdownResponse(markdownContent);
+                // Validate the response content
+                const isValidMarkdown = this.isValidSlidevMarkdown(markdownContent);
+                this.logger.debug(`Response validation status: ${isValidMarkdown ? 'valid' : 'invalid'} Slidev markdown`);
+
+                // Check if the response contains a summary section
+                const summaryMatch = markdownContent.match(/--- Summary ---\s+([\s\S]+?)(?:\s*$|--- End)/i);
+                let summary = '';
+                let processedMarkdown = markdownContent;
+                
+                if (summaryMatch) {
+                    summary = summaryMatch[1].trim().replace(/```(?:markdown|md)?$|```$/, '').trim();
+                    this.logger.debug('Extracted summary from response: ', summary);
+                    
+                    // Remove the summary section from the markdown if needed
+                    // This is optional - you might want to keep it depending on your requirements
+                    processedMarkdown = markdownContent.replace(/--- Summary ---\s+([\s\S]+?)(?:\s*$|--- End)/i, '').trim();
+                }
+
+                // Process the markdown content if it's valid
+                if (isValidMarkdown) {
+                    // Extract just the Slidev markdown content from the response if needed
+                    const markdownMatch = processedMarkdown.match(/--- Slidev Markdown Content Below ---\s+([\s\S]+?)--- End of Slidev Markdown Content ---/i);
+                    if (markdownMatch) {
+                        processedMarkdown = markdownMatch[1].trim();
+                        this.logger.debug('Extracted Slidev markdown content from response');
+                    }
+
+                    // Process the response to ensure it's valid Slidev markdown
+                    const finalContent = this.processMarkdownResponse(processedMarkdown);
+                    return { 
+                        content: finalContent, 
+                        summary: summary, 
+                        isValid: true 
+                    };
+                } else {
+                    this.logger.warn('Received invalid Slidev markdown from language model');
+                    return { 
+                        content: markdownContent,
+                        summary: summary,
+                        isValid: false 
+                    };
+                }
+
             } catch (error) {
                 this.logger.error('Error sending request to language model:', error);
-                
+
                 if (error instanceof vscode.LanguageModelError) {
                     this.logger.error(`Language model error: ${error.message}, Code: ${error.code}`);
-                    
+
                     if (error.code === 'no-permissions') {
                         throw new Error('Permission to use the language model was denied. Please authorize access and try again.');
                     } else if (error.code === 'blocked') {
@@ -69,8 +130,8 @@ export class SlidevGenerator {
                     }
                 }
                 
-                // If we get here, return a fallback template
-                return this.generateFallbackTemplate(userPrompt);
+                // Forward the error instead of generating fallback content
+                throw error;
             }
         } catch (error) {
             this.logger.error('Error in Slidev generation:', error);
@@ -82,35 +143,35 @@ export class SlidevGenerator {
         try {
             // Extract relevant information from the chat context
             let contextText = '';
-            
+
             // Process history from context if available
             if (context.history && Array.isArray(context.history)) {
                 this.logger.debug('Processing chat history, items:', context.history.length);
-                
+
                 for (const message of context.history) {
                     if (typeof message === 'object') {
                         // Pull content from various possible message formats
                         let content = '';
                         let participantId = '';
-                        
+
                         if ('participant' in message) {
                             // @ts-ignore - The structure might vary
                             participantId = String(message.participant);
                             this.logger.trace('Message from participant:', participantId);
                         }
-                        
+
                         // Skip messages from our own participant
                         if (participantId === 'slidev-copilot') {
                             this.logger.trace('Skipping message from slidev-copilot');
                             continue;
                         }
-                        
+
                         if ('prompt' in message && typeof message.prompt === 'string') {
                             content = message.prompt;
                         } else if ('response' in message && typeof message.response === 'string') {
                             content = message.response;
                         }
-                        
+
                         if (content) {
                             this.logger.trace('Adding content to context, length:', content.length);
                             contextText += `${content}\n\n`;
@@ -120,7 +181,7 @@ export class SlidevGenerator {
             } else {
                 this.logger.debug('No chat history available or not an array');
             }
-            
+
             this.logger.debug('Extracted context text, total length:', contextText.length);
             return contextText;
         } catch (error) {
@@ -129,87 +190,52 @@ export class SlidevGenerator {
         }
     }
 
-    private generateFallbackTemplate(userPrompt: string): string {
-        this.logger.info('Generating fallback template');
-        
-        // Extract potential title from the user prompt
-        let title = 'Generated Slidev Presentation';
-        const titleMatch = userPrompt.match(/(?:presentation|slides?|talk)\s+(?:about|on|for)\s+(['"]?)([^'"]+)\1/i);
-        if (titleMatch) {
-            title = titleMatch[2];
-            this.logger.debug('Extracted title from prompt:', title);
+    /**
+     * Validates if the content is valid Slidev markdown
+     */
+    private isValidSlidevMarkdown(content: string): boolean {
+        // Check if content exists and is a string
+        if (!content || typeof content !== 'string') {
+            this.logger.warn('Content is empty or not a string');
+            return false;
         }
         
-        // Create a simple template based on the user prompt
-        const template = `---
-theme: default
-highlight: github
-lineNumbers: false
-drawings:
-  persist: false
-transition: slide-left
-title: ${title}
----
-
-# ${title}
-
-Generated with Slidev Copilot
-
----
-layout: image-right
-image: https://source.unsplash.com/collection/94734566/1920x1080
----
-
-# Key Points
-
-- This is a fallback template because no language model was available
-- Your prompt: "${userPrompt}"
-- Slidev is a slides maker and presenter designed for developers
-- You can edit this markdown to create your presentation
-
----
-layout: two-cols
----
-
-# Slidev Features
-
-- 📝 **Text-based** - Focus on the content with Markdown
-- 🎨 **Themable** - Theme can be shared and used with npm packages
-- 🧑‍💻 **Developer Friendly** - Code highlighting, live coding with autocompletion
-
-::right::
-
-# More Features
-
-- 🤹 **Interactive** - Embedding Vue components to enhance your expressions
-- 🎥 **Recording** - Built-in recording and camera view
-- 📤 **Portable** - Export into PDF, PNGs, or even a hostable SPA
-
----
-layout: center
-class: "text-center"
----
-
-# Learn More
-
-[Documentation](https://sli.dev) · [GitHub](https://github.com/slidevjs/slidev)`;
-
-        this.logger.debug('Generated fallback template, length:', template.length);
-        return template;
+        // Check for minimum required length
+        if (content.length < 50) {
+            this.logger.warn('Content is too short to be valid Slidev markdown');
+            return false;
+        }
+        
+        // Check for frontmatter (required for Slidev)
+        const hasFrontmatter = /^---\s*\n(?:.*\n)+?---\s*\n/m.test(content);
+        if (!hasFrontmatter) {
+            this.logger.warn('Content lacks required Slidev frontmatter');
+            return false;
+        }
+        
+        // Check for slide delimiters
+        const hasSlideDelimiters = /\n---\s*\n/.test(content);
+        if (!hasSlideDelimiters) {
+            this.logger.warn('Content lacks required slide delimiters');
+            return false;
+        }
+        
+        // Content passes basic validation checks
+        return true;
     }
 
     private processMarkdownResponse(response: string): string {
         this.logger.debug('Processing markdown response, length:', response.length);
-        
+
         // Process the markdown response to ensure it's valid Slidev markdown
         let markdown = response;
-        
+
         // Clean up the response to remove any code block markers if the AI returned them
         if (markdown.startsWith('```markdown') || markdown.startsWith('```md')) {
             this.logger.debug('Removing markdown code block markers');
             markdown = markdown.replace(/^```(?:markdown|md)?\s*\n/, '').replace(/\n```\s*$/, '');
         }
-        
+
         // Ensure it starts with a valid Slidev frontmatter if not already present
         if (!markdown.startsWith('---')) {
             this.logger.debug('Adding frontmatter to markdown');
@@ -219,7 +245,7 @@ class: "text-center"
         // Ensure proper slide separators are present
         this.logger.debug('Checking and fixing slide delimiters');
         markdown = this.ensureSlideDelimiters(markdown);
-        
+
         this.logger.debug('Markdown processing complete, final length:', markdown.length);
         return markdown;
     }
@@ -231,18 +257,18 @@ class: "text-center"
             /^<!--\s*slide\s*-->$/im, // HTML comment slide separator
             /^# /m              // Header-based separator (common in Markdown presentations)
         ];
-        
+
         // Check if any delimiter is found
         const hasDelimiters = slideDelimiters.some(delimiter => delimiter.test(markdown));
         this.logger.debug('Slide delimiters found in markdown:', hasDelimiters);
-        
+
         if (!hasDelimiters) {
             this.logger.debug('No slide delimiters found, adding them based on headers');
             // If no delimiters found, add them based on headers
             const lines = markdown.split('\n');
             let result = [];
             let inSlide = false;
-            
+
             for (const line of lines) {
                 // If we find a header, add a separator before it
                 if (/^#\s+.+$/.test(line) && inSlide) {
@@ -255,11 +281,11 @@ class: "text-center"
                     inSlide = true;
                 }
             }
-            
+
             markdown = result.join('\n');
             this.logger.debug('Added slide delimiters, new length:', markdown.length);
         }
-        
+
         return markdown;
     }
 }
