@@ -55,6 +55,7 @@
     "compile": "webpack --mode development",
     "compile:test": "tsc -p ./tsconfig.test.json",
     "watch": "webpack --watch --mode development",
+    "webpack": "webpack --mode production",
     "pretest": "npm run compile:test",
     "lint": "eslint src --fix --ext ts",
     "test": "vitest run",
