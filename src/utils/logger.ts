@@ -4,11 +4,11 @@ import * as vscode from "vscode";
  * Log levels
  */
 export enum LogLevel {
-  Debug = 0,
-  Info = 1,
-  Warning = 2,
-  Error = 3,
-  Trace = 4,
+  Error = 4,
+  Warning = 3,
+  Info = 2,
+  Debug = 1,
+  Trace = 0
 }
 
 /**
