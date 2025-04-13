@@ -21,13 +21,13 @@ export class SessionManager {
   private sessions: Map<string, ChatSession>;
   private context?: vscode.ExtensionContext;
   private logger: Logger;
-  
+
   // Session TTL: 30 days in milliseconds
   private readonly SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-  
+
   // Storage key for persisting sessions
   private readonly STORAGE_KEY = 'slidev-copilot-sessions';
-  
+
   // Marker for embedding session ID in responses
   public readonly SESSION_ID_MARKER = '<!-- session-id:';
 
@@ -55,7 +55,7 @@ export class SessionManager {
     this.context = context;
     this.loadSessions();
     this.logger.debug('SessionManager initialized with context');
-    
+
     // Set up a periodic cleanup task
     const cleanupInterval = setInterval(() => this.cleanupSessions(), 12 * 60 * 60 * 1000); // Run every 12 hours
     context.subscriptions.push({ dispose: () => clearInterval(cleanupInterval) });
@@ -67,17 +67,17 @@ export class SessionManager {
   public createNewSession(): ChatSession {
     const sessionId = this.generateUniqueSessionId();
     this.logger.debug(`Creating new session with ID: ${sessionId}`);
-    
+
     const now = new Date();
     const newSession: ChatSession = {
       id: sessionId,
       createdAt: now,
       lastActiveAt: now
     };
-    
+
     this.sessions.set(sessionId, newSession);
     this.persistSessions();
-    
+
     return newSession;
   }
 
@@ -89,7 +89,7 @@ export class SessionManager {
     const timestamp = Date.now();
     const randomBytes = crypto.randomBytes(8).toString('hex');
     const dataToHash = `session:${timestamp}:${randomBytes}`;
-    
+
     return crypto.createHash('sha256').update(dataToHash).digest('hex').substring(0, 24);
   }
 
@@ -126,14 +126,14 @@ export class SessionManager {
           const match = responseText.match(
             new RegExp(`${this.SESSION_ID_MARKER.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([a-f0-9]+)\\s*-->`)
           );
-          
+
           if (match && match[1]) {
             this.logger.debug(`Found session ID in history: ${match[1]}`);
             return match[1];
           }
         }
       }
-      
+
       return null;
     } catch (error) {
       this.logger.error('Error extracting session ID from history:', error);
@@ -174,11 +174,11 @@ export class SessionManager {
    */
   public getLastPresentationContent(sessionId: string): string | null {
     const session = this.sessions.get(sessionId);
-    
+
     if (!session || !session.lastPresentationPath) {
       return null;
     }
-    
+
     // Read content directly from file
     try {
       if (fs.existsSync(session.lastPresentationPath)) {
@@ -187,7 +187,7 @@ export class SessionManager {
     } catch (error) {
       this.logger.error(`Error reading presentation from ${session.lastPresentationPath}:`, error);
     }
-    
+
     return null;
   }
 
@@ -206,16 +206,16 @@ export class SessionManager {
       this.logger.warn('Cannot load sessions: Extension context not initialized');
       return;
     }
-    
+
     try {
       const storedSessionsData = this.context.globalState.get<Record<string, any>>(this.STORAGE_KEY);
-      
+
       if (storedSessionsData) {
         this.logger.debug('Loading sessions from storage');
-        
+
         // Clear current sessions before loading
         this.sessions.clear();
-        
+
         // Convert and load each session
         Object.entries(storedSessionsData).forEach(([id, data]) => {
           if (data) {
@@ -226,11 +226,11 @@ export class SessionManager {
               lastActiveAt: new Date(data.lastActiveAt),
               lastPresentationPath: data.lastPresentationPath
             };
-            
+
             this.sessions.set(id, session);
           }
         });
-        
+
         this.logger.debug(`Loaded ${this.sessions.size} sessions from storage`);
       } else {
         this.logger.debug('No saved sessions found in storage');
@@ -248,10 +248,10 @@ export class SessionManager {
       this.logger.warn('Cannot persist sessions: Extension context not initialized');
       return;
     }
-    
+
     try {
       const sessionsToStore: Record<string, any> = {};
-      
+
       // Convert sessions to a plain object for storage
       this.sessions.forEach((session, id) => {
         sessionsToStore[id] = {
@@ -260,7 +260,7 @@ export class SessionManager {
           lastPresentationPath: session.lastPresentationPath
         };
       });
-      
+
       // Save to extension storage
       this.context.globalState.update(this.STORAGE_KEY, sessionsToStore);
       this.logger.debug(`Persisted ${this.sessions.size} sessions to storage`);
@@ -275,16 +275,16 @@ export class SessionManager {
   public cleanupSessions(): void {
     const now = Date.now();
     let cleanedCount = 0;
-    
+
     for (const [id, session] of this.sessions.entries()) {
       const sessionAge = now - session.lastActiveAt.getTime();
-      
+
       if (sessionAge > this.SESSION_TTL_MS) {
         this.sessions.delete(id);
         cleanedCount++;
       }
     }
-    
+
     if (cleanedCount > 0) {
       this.logger.info(`Cleaned up ${cleanedCount} expired sessions`);
       this.persistSessions();

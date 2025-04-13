@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { Logger } from './logger';
-import { renderElementJSON, renderPrompt, toVsCodeChatMessages } from '@vscode/prompt-tsx';
+import { renderPrompt } from '@vscode/prompt-tsx';
 import { SlidevPrompt } from '../prompt/SlidevPrompt';
 
 /**
@@ -15,8 +15,7 @@ export class PromptBuilder {
   async buildSlidevPrompt(
     request: vscode.ChatRequest,
     context: vscode.ChatContext,
-    model: vscode.LanguageModelChat,
-    token: vscode.CancellationToken
+    model: vscode.LanguageModelChat
   ): Promise<vscode.LanguageModelChatMessage[]> {
     this.logger.debug('Building Slidev prompt using prompt-tsx components');
     

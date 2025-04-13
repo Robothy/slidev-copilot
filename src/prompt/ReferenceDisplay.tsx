@@ -21,9 +21,9 @@ export class ReferenceDisplay extends PromptElement<BasePromptElementProps & { r
             <UserMessage priority={40}>
               {`## File: `} {uri.fsPath}
 
-              {"\n\`\`\`\n"}
+              {"\n\\`\\`\\`\n"}
               {content}
-              {"\n\`\`\`\n"}
+              {"\n\\`\\`\\`\n"}
             </UserMessage>
           );
         } catch (error) {
@@ -49,9 +49,9 @@ export class ReferenceDisplay extends PromptElement<BasePromptElementProps & { r
             <UserMessage priority={40}>
               {"## Location:"} {location.uri.fsPath} (Lines {startLine + 1}-{endLine + 1})
 
-              {"\n\`\`\`\n"}
+              {"\n\\`\\`\\`\n"}
               {extractedContent}
-              {"\n\`\`\`\n"}
+              {"\n\\`\\`\\`\n"}
             </UserMessage>
           );
         } catch (error) {
@@ -67,9 +67,9 @@ export class ReferenceDisplay extends PromptElement<BasePromptElementProps & { r
         return (
           <UserMessage priority={40}>
             {"## Reference:"} {ref.id || 'Text'}
-            {"\n\`\`\`\n"}
+            {"\n\\`\\`\\`\n"}
             {ref.value}
-            {"\n\`\`\`\n"}
+            {"\n\\`\\`\\`\n"}
           </UserMessage>
         );
       } else {

@@ -25,7 +25,7 @@ interface HistoryMessagesProps extends BasePromptElementProps {
  * Helper function to convert chat response parts to markdown string
  */
 function extractSummaryFromAssistantTurn(turn: ChatResponseTurn): string {
-  let responseText = extractResponseTextFromAssistantTurn(turn);
+  const responseText = extractResponseTextFromAssistantTurn(turn);
 
   // For slidev-copilot responses, try to extract the summary
   if (turn.participant === "slidev-copilot") {
