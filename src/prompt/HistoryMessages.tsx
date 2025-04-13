@@ -5,7 +5,6 @@ import {
   BasePromptElementProps,
   PrioritizedList,
   PromptPiece,
-  TextChunk,
 } from "@vscode/prompt-tsx";
 import {
   ChatContext,

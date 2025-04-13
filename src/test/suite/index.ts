@@ -1,38 +1,12 @@
 import * as path from 'path';
-import Mocha from 'mocha';
-import glob from 'glob';
+import { glob } from 'glob';
 
+/**
+ * This file is maintained for backward compatibility.
+ * For running tests, use `vitest` CLI instead of this custom runner.
+ */
 export function run(): Promise<void> {
-  // Create the mocha test
-  const mocha = new Mocha({
-    ui: 'tdd',
-    color: true
-  });
-
-  const testsRoot = path.resolve(__dirname, '..');
-
-  return new Promise<void>((resolve, reject) => {
-    glob('**/**.test.js', { cwd: testsRoot }, (err: Error | null, files: string[]) => {
-      if (err) {
-        return reject(err);
-      }
-
-      // Add files to the test suite
-      files.forEach((f: string) => mocha.addFile(path.resolve(testsRoot, f)));
-
-      try {
-        // Run the mocha test
-        mocha.run((failures: number) => {
-          if (failures > 0) {
-            reject(new Error(`${failures} tests failed.`));
-          } else {
-            resolve();
-          }
-        });
-      } catch (err) {
-        console.error(err);
-        reject(err);
-      }
-    });
-  });
+  console.log('Using Vitest for testing. Please run tests with `npm test` or `npm run test:watch`');
+  
+  return Promise.resolve();
 }

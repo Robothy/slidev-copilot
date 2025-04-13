@@ -33,23 +33,6 @@ export class PromptBuilder {
         },
         model
       );
-
-      // const jsonPrompt = await renderElementJSON(
-      //   SlidevPrompt, 
-      //   {
-      //     userRequest: request.prompt,
-      //     history: context.history,
-      //     references: request.references
-      //   },
-      //   {
-      //     tokenBudget: 8192,
-      //     countTokens: (txt, aa) => {
-      //       return new Promise(() => 8192)
-      //     }
-      //   }
-      // );
-      // this.logger.debug('Generated JSON prompt:', jsonPrompt);
-        
       
       this.logger.debug('Successfully rendered prompt-tsx component, messages:', messages.length);
       return messages;
