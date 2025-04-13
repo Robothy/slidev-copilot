@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { Logger, LogLevel } from './utils/logger';
-import { SlidevChatParticipant } from './chatProvider';
+import { SlidevChatParticipant } from './slidevChatParticipant';
 import { SlidevCli } from './utils/slidevCli';
 import { SessionManager } from './utils/sessionManager';
 
@@ -43,9 +43,10 @@ export function activate(context: vscode.ExtensionContext) {
       logger.error('Error checking Slidev installation:', error);
     });
         
-    // Log registration of chat participant
+    // Create and initialize the Slidev Copilot chat participant
     logger.info('Registering Slidev Copilot chat participant...');
-    new SlidevChatParticipant(context);
+    const chatParticipant = new SlidevChatParticipant(context);
+    chatParticipant.initialize();
     logger.info('Slidev Copilot chat participant registered successfully');
         
     // Register save command

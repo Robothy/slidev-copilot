@@ -36,6 +36,12 @@ function extractSummaryFromAssistantTurn(turn: ChatResponseTurn): string {
     }
   }
 
+
+  if (turn.participant === "another-participant") {
+
+    return `[Another Participant Summary] ${responseText}`;
+  }
+
   return responseText;
 }
 
@@ -61,11 +67,9 @@ export class HistoryMessages extends PromptElement<HistoryMessagesProps> {
     const history: (UserMessage | AssistantMessage | PromptElement)[] = [];
 
     if (this.props.history !== null && this.props.history.length > 0) {
-      const oldTurns = this.props.history
-        .slice(0, this.props.history.length - 1)
-        .reverse();
+      const turns = this.props.history;
 
-      for (const turn of oldTurns) {
+      for (const turn of turns) {
         if (turn instanceof ChatRequestTurn) {
           history.push(<UserMessage>{turn.prompt}</UserMessage>);
         } else if (turn instanceof ChatResponseTurn) {
@@ -75,15 +79,6 @@ export class HistoryMessages extends PromptElement<HistoryMessagesProps> {
             </AssistantMessage>
           );
         }
-      }
-
-      const lastTurn = this.props.history[this.props.history.length - 1];
-      if (lastTurn instanceof ChatResponseTurn) {
-        history.push(
-          <AssistantMessage name={lastTurn.participant}>
-            {extractResponseTextFromAssistantTurn(lastTurn)}
-          </AssistantMessage>
-        );
       }
     }
 
