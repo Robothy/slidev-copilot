@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { Logger, LogLevel } from './utils/logger';
-import { SlidevChatParticipant } from './chatProvider';
+import { SlidevChatParticipant } from './slidevChatParticipant';
 import { SlidevCli } from './utils/slidevCli';
 import { SessionManager } from './utils/sessionManager';
 
@@ -8,8 +8,18 @@ import { SessionManager } from './utils/sessionManager';
 const logger = Logger.getInstance();
 
 export function activate(context: vscode.ExtensionContext) {
-  // Set to Debug level for more verbose logging during troubleshooting
-  Logger.setLevel(LogLevel.Debug);
+  // Load log level from configuration
+  Logger.loadLogLevelFromConfig();
+    
+  // Register a configuration change listener
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration(event => {
+      if (event.affectsConfiguration('slidev-copilot.logLevel')) {
+        logger.info('Log level configuration changed, updating...');
+        Logger.loadLogLevelFromConfig();
+      }
+    })
+  );
     
   // Show the output channel automatically to see logs during debugging
   logger.show();
@@ -43,9 +53,10 @@ export function activate(context: vscode.ExtensionContext) {
       logger.error('Error checking Slidev installation:', error);
     });
         
-    // Log registration of chat participant
+    // Create and initialize the Slidev Copilot chat participant
     logger.info('Registering Slidev Copilot chat participant...');
-    new SlidevChatParticipant(context);
+    const chatParticipant = new SlidevChatParticipant(context);
+    chatParticipant.initialize();
     logger.info('Slidev Copilot chat participant registered successfully');
         
     // Register save command

@@ -16,3 +16,4 @@ webpack.config.js
 vsc-extension-quickstart.md
 **/*.vsix
 !dist/**
+dist/**/*.map

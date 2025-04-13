@@ -14,6 +14,15 @@ export interface ChatSession {
 }
 
 /**
+ * Interface for the stored session data format
+ */
+interface StoredSessionData {
+  createdAt: string;
+  lastActiveAt: string;
+  lastPresentationPath?: string;
+}
+
+/**
  * Manager for chat sessions that persists session data
  */
 export class SessionManager {
@@ -146,10 +155,13 @@ export class SessionManager {
    */
   public getSessionById(sessionId: string): ChatSession | null {
     if (this.sessions.has(sessionId)) {
-      const session = this.sessions.get(sessionId)!;
-      // Update last active time
-      session.lastActiveAt = new Date();
-      return session;
+      const session = this.sessions.get(sessionId);
+      // Safety check to ensure session exists
+      if (session) {
+        // Update last active time
+        session.lastActiveAt = new Date();
+        return session;
+      }
     }
     return null;
   }
@@ -159,11 +171,13 @@ export class SessionManager {
    */
   public updatePresentationPath(sessionId: string, presentationPath: string): void {
     if (this.sessions.has(sessionId)) {
-      const session = this.sessions.get(sessionId)!;
-      session.lastPresentationPath = presentationPath;
-      session.lastActiveAt = new Date();
-      this.persistSessions();
-      this.logger.debug(`Updated session ${sessionId} with presentation path: ${presentationPath}`);
+      const session = this.sessions.get(sessionId);
+      if (session) {
+        session.lastPresentationPath = presentationPath;
+        session.lastActiveAt = new Date();
+        this.persistSessions();
+        this.logger.debug(`Updated session ${sessionId} with presentation path: ${presentationPath}`);
+      }
     } else {
       this.logger.warn(`Attempted to update non-existent session: ${sessionId}`);
     }
@@ -208,7 +222,7 @@ export class SessionManager {
     }
 
     try {
-      const storedSessionsData = this.context.globalState.get<Record<string, any>>(this.STORAGE_KEY);
+      const storedSessionsData = this.context.globalState.get<Record<string, StoredSessionData>>(this.STORAGE_KEY);
 
       if (storedSessionsData) {
         this.logger.debug('Loading sessions from storage');
@@ -250,7 +264,7 @@ export class SessionManager {
     }
 
     try {
-      const sessionsToStore: Record<string, any> = {};
+      const sessionsToStore: Record<string, StoredSessionData> = {};
 
       // Convert sessions to a plain object for storage
       this.sessions.forEach((session, id) => {

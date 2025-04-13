@@ -1,6 +1,17 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- filepath: c:\Code\slidev-copilot\media\icon-v2.svg -->
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- Background -->
   <rect width="256" height="256" fill="#05a2a2" rx="60"/>
-  <path fill="#fff" d="M128 44c-46.867 0-84 37.133-84 84s37.133 84 84 84 84-37.133 84-84-37.133-84-84-84zm0 153.69c-39.344 0-69.69-30.346-69.69-69.69s30.346-69.69 69.69-69.69 69.69 30.346 69.69 69.69-30.346 69.69-69.69 69.69z"/>
-  <path fill="#fff" d="M112 100v56l48-28-48-28z"/>
+  
+  <!-- Slides stack -->
+  <rect x="60" y="65" width="136" height="102" fill="#ffffff" rx="8" opacity="0.3"/>
+  <rect x="68" y="73" width="136" height="102" fill="#ffffff" rx="8" opacity="0.6"/>
+  <rect x="76" y="81" width="136" height="102" fill="#ffffff" rx="8"/>
+  
+  <!-- AI/Copilot representation - abstract brain/circuit pattern -->
+  <g fill="none" stroke="#05a2a2" stroke-width="5" stroke-linecap="round">
+    <path d="M120,115 C130,105 150,105 160,115"/>
+    <path d="M110,130 C125,115 155,115 170,130"/>
+    <path d="M100,145 C120,125 160,125 180,145"/>
+  </g>
 </svg>
