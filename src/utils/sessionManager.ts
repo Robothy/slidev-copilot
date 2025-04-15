@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 import { Logger } from './logger';
 
 /**
@@ -11,6 +13,7 @@ export interface ChatSession {
   createdAt: Date;
   lastActiveAt: Date;
   lastPresentationPath?: string;
+  slidevProjectPath?: string; // Add project path to store where Slidev project is located
 }
 
 /**
@@ -20,6 +23,7 @@ interface StoredSessionData {
   createdAt: string;
   lastActiveAt: string;
   lastPresentationPath?: string;
+  slidevProjectPath?: string; // Add project path for storage
 }
 
 /**
@@ -184,6 +188,30 @@ export class SessionManager {
   }
 
   /**
+   * Updates the Slidev project path for a session
+   */
+  public updateSlidevProjectPath(sessionId: string, projectPath: string): void {
+    if (this.sessions.has(sessionId)) {
+      const session = this.sessions.get(sessionId);
+      if (session) {
+        session.slidevProjectPath = projectPath;
+        session.lastActiveAt = new Date();
+        this.persistSessions();
+        this.logger.debug(`Updated session ${sessionId} with Slidev project path: ${projectPath}`);
+      }
+    } else {
+      this.logger.warn(`Attempted to update non-existent session: ${sessionId}`);
+    }
+  }
+
+  /**
+   * Gets the Slidev project path for a session if available
+   */
+  public getSlidevProjectPath(sessionId: string): string | undefined {
+    return this.sessions.get(sessionId)?.slidevProjectPath;
+  }
+
+  /**
    * Gets the last presentation content for a session by reading from file
    */
   public getLastPresentationContent(sessionId: string): string | null {
@@ -238,7 +266,8 @@ export class SessionManager {
               id: id,
               createdAt: new Date(data.createdAt),
               lastActiveAt: new Date(data.lastActiveAt),
-              lastPresentationPath: data.lastPresentationPath
+              lastPresentationPath: data.lastPresentationPath,
+              slidevProjectPath: data.slidevProjectPath
             };
 
             this.sessions.set(id, session);
@@ -271,7 +300,8 @@ export class SessionManager {
         sessionsToStore[id] = {
           createdAt: session.createdAt.toISOString(),
           lastActiveAt: session.lastActiveAt.toISOString(),
-          lastPresentationPath: session.lastPresentationPath
+          lastPresentationPath: session.lastPresentationPath,
+          slidevProjectPath: session.slidevProjectPath
         };
       });
 
@@ -289,11 +319,17 @@ export class SessionManager {
   public cleanupSessions(): void {
     const now = Date.now();
     let cleanedCount = 0;
+    const deletedSessionIds: string[] = [];
 
     for (const [id, session] of this.sessions.entries()) {
       const sessionAge = now - session.lastActiveAt.getTime();
 
       if (sessionAge > this.SESSION_TTL_MS) {
+        // Store the session ID and project path for cleanup
+        if (session.slidevProjectPath && fs.existsSync(session.slidevProjectPath)) {
+          deletedSessionIds.push(id);
+        }
+        
         this.sessions.delete(id);
         cleanedCount++;
       }
@@ -302,6 +338,94 @@ export class SessionManager {
     if (cleanedCount > 0) {
       this.logger.info(`Cleaned up ${cleanedCount} expired sessions`);
       this.persistSessions();
+      
+      // Delete session project directories
+      this.deleteSessionProjects(deletedSessionIds);
+    }
+  }
+
+  /**
+   * Gets all active session IDs for cleanup purposes
+   */
+  public getActiveSessionIds(): string[] {
+    // Return all session IDs that haven't expired yet
+    const now = Date.now();
+    const activeSessionIds: string[] = [];
+    
+    for (const [id, session] of this.sessions.entries()) {
+      const sessionAge = now - session.lastActiveAt.getTime();
+      
+      // Consider sessions active if they're within the TTL
+      if (sessionAge <= this.SESSION_TTL_MS) {
+        activeSessionIds.push(id);
+      }
+    }
+    
+    this.logger.debug(`Found ${activeSessionIds.length} active sessions`);
+    return activeSessionIds;
+  }
+
+  /**
+   * Delete session project directories for the given session IDs
+   */
+  private deleteSessionProjects(sessionIds: string[]): void {
+    if (sessionIds.length === 0) {
+      return;
+    }
+    
+    this.logger.info(`Deleting project directories for ${sessionIds.length} sessions`);
+    
+    try {
+      // Get the .slidev directory path
+      const tempDir = path.join(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || path.join(os.tmpdir(), 'slidev-copilot'), '.slidev');
+      if (!fs.existsSync(tempDir)) {
+        return;
+      }
+      
+      // Get all directories in the .slidev folder
+      const entries = fs.readdirSync(tempDir, { withFileTypes: true });
+      
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          // Look for directories matching our sessions
+          for (const sessionId of sessionIds) {
+            // Check both old format (session-{id}) and new format (slidev-{timestamp}-{id})
+            if (entry.name === `session-${sessionId}` || 
+                (entry.name.startsWith('slidev-') && entry.name.endsWith(`-${sessionId.substring(0, 8)}`))) {
+              const dirPath = path.join(tempDir, entry.name);
+              try {
+                this.deleteDirectory(dirPath);
+                this.logger.info(`Deleted session project directory: ${dirPath}`);
+              } catch (error) {
+                this.logger.error(`Failed to delete session project directory: ${dirPath}`, error);
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      this.logger.error('Error during project directory cleanup:', error);
+    }
+  }
+
+  /**
+   * Helper to delete a directory recursively
+   */
+  private deleteDirectory(directoryPath: string): void {
+    if (fs.existsSync(directoryPath)) {
+      const entries = fs.readdirSync(directoryPath, { withFileTypes: true });
+      
+      for (const entry of entries) {
+        const fullPath = path.join(directoryPath, entry.name);
+        
+        if (entry.isDirectory()) {
+          this.deleteDirectory(fullPath);
+        } else {
+          fs.unlinkSync(fullPath);
+        }
+      }
+      
+      fs.rmdirSync(directoryPath);
     }
   }
 }

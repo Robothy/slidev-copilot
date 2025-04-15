@@ -21,7 +21,7 @@ export class SlidevChatParticipant {
     this.logger = Logger.getInstance();
     this.sessionManager = SessionManager.getInstance();
     this.requestParser = new SlidevChatRequestParser();
-    this.chatController = new SlidevChatController();
+    this.chatController = new SlidevChatController(context);
     this.context = context;
         
     this.logger.debug('Creating Slidev Copilot chat participant...');

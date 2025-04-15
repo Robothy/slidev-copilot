@@ -7,6 +7,7 @@ import { Logger } from './utils/logger';
 import { SlidevChatResponse } from './model/SlidevChatResponse';
 import { SlidevChatRequest } from './model/SlidevChatRequest';
 import { SlidevChatRequestParser } from './model/SlidevChatRequestParser';
+import { SlidevCli } from './utils/slidevCli';
 
 /**
  * Controller responsible for processing chat requests and generating slidev presentations
@@ -16,11 +17,13 @@ export class SlidevChatController {
   private readonly slidevGenerator: SlidevGenerator;
   private readonly logger: Logger;
   private readonly requestParser: SlidevChatRequestParser;
+  private readonly slidevCli: SlidevCli;
 
-  constructor() {
+  constructor(context: vscode.ExtensionContext) {
     this.slidevGenerator = new SlidevGenerator();
     this.logger = Logger.getInstance();
     this.requestParser = new SlidevChatRequestParser();
+    this.slidevCli = new SlidevCli(context);
     this.logger.debug('SlidevChatController initialized');
   }
 
@@ -102,43 +105,58 @@ export class SlidevChatController {
   ): Promise<void> {
     // Handle ChatResponse object returned by SlidevGenerator
     if (slidevResult.isValid) {
-      // Save to temp file for valid content
-      const tempFilePath = await this.saveTempMarkdown(slidevResult.content);
-      this.logger.info('Saved temporary markdown file at:', tempFilePath);
+      try {
+        // Update the session project with the new content
+        const projectPath = await this.slidevCli.getSessionProject(slidevRequest.sessionId, slidevResult.content);
+        const slidesPath = path.join(projectPath, 'slides.md');
+        
+        this.logger.info('Saved slides in session project at:', slidesPath);
                   
-      // Update session with the presentation path and content
-      this.requestParser.updatePresentationPath(slidevRequest.sessionId, tempFilePath);
-      this.logger.debug(`Updated session ${slidevRequest.sessionId} with presentation path: ${tempFilePath}`);
+        // Update session with the presentation path
+        this.requestParser.updatePresentationPath(slidevRequest.sessionId, slidesPath);
+        this.logger.debug(`Updated session ${slidevRequest.sessionId} with presentation path: ${slidesPath}`);
                   
-      // Generate the session ID marker (hidden in the response)
-      const sessionIdMarker = this.requestParser.formatSessionIdMarker(slidevRequest.sessionId);
+        // Generate the session ID marker (hidden in the response)
+        const sessionIdMarker = this.requestParser.formatSessionIdMarker(slidevRequest.sessionId);
                   
-      // Return response with complete markdown and summary
-      this.logger.debug('Returning response with complete content');
-      stream.markdown(`${slidevResult.summary}\n\n`);
+        // Return response with complete markdown and summary
+        this.logger.debug('Returning response with complete content');
+        stream.markdown(`${slidevResult.summary}\n\n`);
 
-      if (slidevRequest.isNewSession) {
-        // If this is a new session, include the session ID marker in the response
-        stream.markdown(`${sessionIdMarker}\n\n\n`);
+        if (slidevRequest.isNewSession) {
+          // If this is a new session, include the session ID marker in the response
+          stream.markdown(`${sessionIdMarker}\n\n\n`);
+        }
+
+        stream.anchor(vscode.Uri.file(slidesPath), 'Open in Editor');
+                  
+        // Add save button as a command
+        this.logger.debug('Adding save button to response');
+        stream.button({
+          command: 'slidev-copilot.saveSlides',
+          title: '💾 Save',
+          arguments: [slidesPath]
+        });
+                  
+        // Add button to preview in Slidev
+        this.logger.debug('Adding button to preview in Slidev');
+        stream.button({
+          command: 'slidev-copilot.previewSlides',
+          title: '▶️ Preview',
+          arguments: [slidevRequest.sessionId, slidevResult.content]
+        });
+        
+        // Add button to export to PDF
+        this.logger.debug('Adding button to export to PDF');
+        stream.button({
+          command: 'slidev-copilot.exportSlides',
+          title: '📄 Export PDF',
+          arguments: [slidevRequest.sessionId, slidevResult.content]
+        });
+      } catch (error) {
+        this.logger.error('Error handling valid Slidev response:', error);
+        stream.markdown(`❌ Error preparing Slidev project: ${error instanceof Error ? error.message : String(error)}`);
       }
-
-      stream.anchor(vscode.Uri.file(tempFilePath), 'Open in Editor');
-                  
-      // Add save button as a command
-      this.logger.debug('Adding save button to response');
-      stream.button({
-        command: 'slidev-copilot.saveSlides',
-        title: '💾 Save',
-        arguments: [tempFilePath]
-      });
-                  
-      // Add button to preview in Slidev
-      this.logger.debug('Adding button to preview in Slidev');
-      stream.button({
-        command: 'slidev-copilot.previewSlides',
-        title: '▶️ Preview',
-        arguments: [tempFilePath]
-      });
     } else {
       // Handle invalid content - don't render buttons
       this.logger.warn('Invalid Slidev markdown received from language model');
@@ -147,38 +165,6 @@ export class SlidevChatController {
       const sessionIdMarker = this.requestParser.formatSessionIdMarker(slidevRequest.sessionId);
                   
       stream.markdown(`❌ The language model didn't produce valid Slidev markdown content. Here's what was returned:\n\n\`\`\`\n${slidevResult.content}\n\`\`\`\n\nPlease try again with a more specific request or different wording.\n\n${sessionIdMarker}`);
-    }
-  }
-
-  /**
-   * Save markdown content to a temporary file
-   */
-  private async saveTempMarkdown(markdown: string): Promise<string> {
-    this.logger.debug('Saving markdown to temporary file...');
-        
-    try {
-      const tempDir = path.join(os.tmpdir(), 'slidev-copilot');
-      this.logger.debug('Temp directory path:', tempDir);
-            
-      // Create temp directory if it doesn't exist
-      if (!fs.existsSync(tempDir)) {
-        this.logger.debug('Temp directory does not exist, creating it');
-        fs.mkdirSync(tempDir, { recursive: true });
-      }
-            
-      // Create a unique filename
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const tempFilePath = path.join(tempDir, `slidev-${timestamp}.md`);
-      this.logger.debug('Generated temp file path:', tempFilePath);
-            
-      // Write the markdown content to the temp file
-      fs.writeFileSync(tempFilePath, markdown);
-      this.logger.info('Successfully wrote markdown to temp file');
-            
-      return tempFilePath;
-    } catch (error) {
-      this.logger.error('Failed to save markdown to temp file:', error);
-      throw new Error(`Failed to save markdown to temp file: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 }
