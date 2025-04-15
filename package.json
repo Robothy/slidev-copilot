@@ -38,12 +38,18 @@
         "slidev-copilot.logLevel": {
           "type": "string",
           "default": "warning",
-          "enum": ["trace", "debug", "info", "warning", "error"],
+          "enum": [
+            "trace",
+            "debug",
+            "info",
+            "warning",
+            "error"
+          ],
           "enumDescriptions": [
             "Trace level - most verbose logging",
             "Debug level - detailed information for debugging",
-            "Info level - general information about execution flow", 
-            "Warning level (default) - possible issues or problems", 
+            "Info level - general information about execution flow",
+            "Warning level (default) - possible issues or problems",
             "Error level - only errors"
           ],
           "description": "Controls the verbosity of logs in the Slidev Copilot output panel"
@@ -78,13 +84,16 @@
     "tslint": "^6.1.3",
     "typescript": "^5.1.3",
     "vitest": "^1.2.1",
-    "webpack": "^5.91.0",
+    "webpack": "^5.99.5",
     "webpack-cli": "^5.1.4"
   },
   "dependencies": {
     "@vscode/prompt-tsx": "^0.3.0-alpha.23"
   },
   "bundledDependencies": [
+    "@vscode/prompt-tsx"
+  ],
+  "bundleDependencies": [
     "@vscode/prompt-tsx"
   ]
 }
