@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { Logger } from '../../../utils/logger';
+import { Logger, LogLevel } from '../../../utils/logger';
 
 describe('Logger Utility', () => {
   it('should log messages correctly', () => {
@@ -9,11 +9,15 @@ describe('Logger Utility', () => {
     // Create a logger instance and modify it to use console.log for testing
     const loggerInstance = Logger.getInstance();
     
-    // Patch the private log method to use console.log for testing
-    // @ts-ignore - accessing private method for testing
-    const originalLog = loggerInstance['log'];
-    // @ts-ignore - replacing private method for testing
-    loggerInstance['log'] = function(level: any, message: string, data?: any) {
+    // Safely access the private log method using type assertion
+    const originalLog = (loggerInstance as unknown as { 
+      log: (level: LogLevel, message: string, data?: unknown) => void 
+    }).log;
+    
+    // Replace the private log method for testing
+    (loggerInstance as unknown as { 
+      log: (level: LogLevel, message: string, data?: unknown) => void 
+    }).log = function(level: LogLevel, message: string, data?: unknown) {
       console.log(`[${level}] ${message}`);
       if (data) console.log(data);
     };
@@ -25,8 +29,9 @@ describe('Logger Utility', () => {
     expect(consoleSpy).toHaveBeenCalled();
     
     // Restore the original method and spy
-    // @ts-ignore - restoring private method
-    loggerInstance['log'] = originalLog;
+    (loggerInstance as unknown as { 
+      log: (level: LogLevel, message: string, data?: unknown) => void 
+    }).log = originalLog;
     consoleSpy.mockRestore();
   });
 });
