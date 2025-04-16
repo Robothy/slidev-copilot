@@ -388,6 +388,9 @@ export class SlidevCli {
         this.slidevTerminal = undefined;
       }
       
+      // Create a Vite config file to allow access to the template node_modules
+      await this.createViteConfig(projectPath);
+      
       // Create a new terminal for Slidev
       this.slidevTerminal = vscode.window.createTerminal('Slidev');
       this.logger.debug('Created Slidev terminal');
@@ -520,5 +523,32 @@ export class SlidevCli {
       this.slidevTerminal.dispose();
       this.slidevTerminal = undefined;
     }
+  }
+
+  /**
+   * Create a Vite config file to allow access to the template node_modules
+   */
+  private async createViteConfig(projectPath: string): Promise<void> {
+    const viteConfigPath = path.join(projectPath, 'vite.config.js');
+    const viteConfigContent = `
+      import { defineConfig } from 'vite';
+
+      export default defineConfig({
+        server: {
+          fs: {
+            allow: [
+              // Allow the template project path which contains node_modules
+              '${this.templateProjectPath.replace(/\\/g, '\\\\')}',
+              // Allow the session project path
+              '${projectPath.replace(/\\/g, '\\\\')}',
+              // Add the root directory containing the node_modules
+              '${path.dirname(this.templateProjectPath).replace(/\\/g, '\\\\')}'
+            ]
+          }
+        }
+      });
+    `;
+    fs.writeFileSync(viteConfigPath, viteConfigContent);
+    this.logger.debug(`Created Vite config at: ${viteConfigPath}`);
   }
 }

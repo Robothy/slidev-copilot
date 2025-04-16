@@ -11,3 +11,5 @@ out
 
 .vscode-test
 dist
+
+.slidev
