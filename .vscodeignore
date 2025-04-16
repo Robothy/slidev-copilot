@@ -17,3 +17,5 @@ vsc-extension-quickstart.md
 **/*.vsix
 !dist/**
 dist/**/*.map
+
+.slidev/**
