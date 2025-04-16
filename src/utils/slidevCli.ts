@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as cp from 'child_process';
 import * as path from 'path';
 import * as os from 'os';
+import * as net from 'net';
 import { Logger } from './logger';
 import { SessionManager } from './sessionManager';
 
@@ -250,10 +251,9 @@ export class SlidevCli {
   private async findAvailablePort(startPort: number = this.DEFAULT_PORT): Promise<number> {
     this.logger.debug(`Looking for available port starting from ${startPort}`);
     
-    // Helper function that checks if a port is available
     const isPortAvailable = (port: number): Promise<boolean> => {
       return new Promise(resolve => {
-        const server = require('net').createServer();
+        const server = net.createServer();
         
         server.once('error', () => {
           // Error means port is not available

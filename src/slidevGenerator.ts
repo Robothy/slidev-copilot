@@ -64,7 +64,7 @@ export class SlidevGenerator {
         }
         this.logger.debug('Full prompt sent to the model:', fullPrompt);
 
-        let markdownContent = await this.sendModelRequest(model, messages, token);
+        const markdownContent = await this.sendModelRequest(model, messages, token);
 
         if (token.isCancellationRequested) {
           this.logger.info('Operation cancelled');
