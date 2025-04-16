@@ -3,6 +3,7 @@ import { Logger } from './utils/logger';
 import { PromptBuilder } from './utils/promptBuilder';
 import { ChatResponseParser } from './model/SlidevChatResponseParser';
 import { SlidevChatResponse } from './model/SlidevChatResponse';
+import { send } from 'process';
 
 export class SlidevGenerator {
   private readonly logger: Logger;
@@ -63,7 +64,7 @@ export class SlidevGenerator {
         }
         this.logger.debug('Full prompt sent to the model:', fullPrompt);
 
-        const response = await model.sendRequest(messages, {}, token);
+        const markdownContent = await this.sendModelRequest(model, messages, token);
 
         if (token.isCancellationRequested) {
           this.logger.info('Operation cancelled');
@@ -71,17 +72,14 @@ export class SlidevGenerator {
         }
 
         this.logger.info('Successfully received response from the model');
-        let markdownContent = '';
 
-        // Extract the text from the response
-        for await (const fragment of response.text) {
-          markdownContent += fragment;
-        }
-        
+
+
+
         // Use the ChatResponseParser to parse and validate the response
         const chatResponse = this.responseParser.parse(markdownContent);
         this.logger.debug(`Response validation status: ${chatResponse.isValid ? 'valid' : 'invalid'} Slidev markdown`);
-        
+
         return chatResponse;
       } catch (error) {
         this.logger.error('Error sending request to language model:', error);
@@ -95,7 +93,7 @@ export class SlidevGenerator {
             throw new Error('Request was blocked due to content filtering or quota limits.');
           }
         }
-                
+
         // Forward the error instead of generating fallback content
         throw error;
       }
@@ -105,4 +103,29 @@ export class SlidevGenerator {
     }
   }
 
+  /**
+   * Sends a request to the language model, with fallback to gpt4o if the original model isn't supported
+   */
+  private async sendModelRequest(
+    model: vscode.LanguageModelChat,
+    messages: vscode.LanguageModelChatMessage[],
+    token: vscode.CancellationToken
+  ): Promise<string> {
+    try {
+      const response = await model.sendRequest(messages, {}, token);
+      let markdownContent = '';
+      for await (const fragment of response.text) {
+        markdownContent += fragment;
+      }
+      return markdownContent;
+    } catch (error) {
+      if (String(error).includes('model_not_supported') && model.name !== "gpt-4o") {
+        this.logger.warn(`Model ${model.name} not supported, falling back to gpt-4o`);
+        const gpt4o  = await vscode.lm.selectChatModels({vendor: 'copilot', family: 'gpt-4o'}).then(models => models[0]);
+        return this.sendModelRequest(gpt4o, messages, token);
+      }
+      this.logger.error('Error sending request to language model:', error);
+      throw error;
+    }
+  }
 }

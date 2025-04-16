@@ -43,15 +43,8 @@ export function activate(context: vscode.ExtensionContext) {
     logger.debug('SessionManager initialized');
         
     // Initialize Slidev CLI
-    const slidevCli = new SlidevCli();
+    const slidevCli = new SlidevCli(context);
     context.subscriptions.push({ dispose: () => slidevCli.dispose() });
-        
-    // Check Slidev installation when the extension activates
-    slidevCli.checkSlidevInstallation().then(isInstalled => {
-      logger.info('Slidev installation status:', isInstalled ? 'installed' : 'not installed');
-    }).catch(error => {
-      logger.error('Error checking Slidev installation:', error);
-    });
         
     // Create and initialize the Slidev Copilot chat participant
     logger.info('Registering Slidev Copilot chat participant...');
@@ -59,9 +52,24 @@ export function activate(context: vscode.ExtensionContext) {
     chatParticipant.initialize();
     logger.info('Slidev Copilot chat participant registered successfully');
         
-    // Register save command
-    logger.info('Registering save command...');
+    // Register commands
+    logger.info('Registering command handlers...');
     context.subscriptions.push(
+      vscode.commands.registerCommand('slidev-copilot.previewSlides', async (sessionId: string, content: string) => {
+        await slidevCli.startSlidevServer(sessionId, content);
+      }),
+      vscode.commands.registerCommand('slidev-copilot.exportSlides', async (sessionId: string, content: string) => {
+        try {
+          const outputPath = await slidevCli.exportToPdf(sessionId, content);
+          vscode.window.showInformationMessage(`Presentation exported to ${outputPath}`, 'Open').then(action => {
+            if (action === 'Open') {
+              vscode.env.openExternal(vscode.Uri.file(outputPath));
+            }
+          });
+        } catch (error) {
+          vscode.window.showErrorMessage(`Failed to export presentation: ${error}`);
+        }
+      }),
       vscode.commands.registerCommand('slidev-copilot.saveSlides', async (filePath: string) => {
         logger.debug('Save command triggered with file path:', filePath);
                 
@@ -91,37 +99,11 @@ export function activate(context: vscode.ExtensionContext) {
         }
       })
     );
-        
-    // Register preview command
-    logger.info('Registering preview command...');
-    context.subscriptions.push(
-      vscode.commands.registerCommand('slidev-copilot.previewSlides', async (filePath: string) => {
-        logger.debug('Preview command triggered with file path:', filePath);
-                
-        try {
-          await slidevCli.startSlidevServer(filePath);
-        } catch (error) {
-          logger.error('Error starting Slidev server:', error);
-          vscode.window.showErrorMessage(`Failed to start Slidev server: ${error instanceof Error ? error.message : String(error)}`);
-        }
-      })
-    );
-        
-    // Register export command
-    logger.info('Registering export command...');
-    context.subscriptions.push(
-      vscode.commands.registerCommand('slidev-copilot.exportSlides', async (filePath: string) => {
-        logger.debug('Export command triggered with file path:', filePath);
-                
-        try {
-          await slidevCli.exportToPdf(filePath);
-        } catch (error) {
-          logger.error('Error exporting to PDF:', error);
-          vscode.window.showErrorMessage(`Failed to export to PDF: ${error instanceof Error ? error.message : String(error)}`);
-        }
-      })
-    );
-        
+    
+    // Periodically clean up old sessions - Use SessionManager's built-in cleanup
+    // The SessionManager already handles periodic cleanup, so we don't need to duplicate it here
+    logger.info('Session cleanup is handled by SessionManager');
+    
     // Log successful activation
     logger.info('✅ Slidev Copilot extension activated successfully');
   } catch (error) {
