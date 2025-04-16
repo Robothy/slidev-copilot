@@ -388,9 +388,6 @@ export class SlidevCli {
         this.slidevTerminal = undefined;
       }
       
-      // Create a Vite config file to allow access to the template node_modules
-      await this.createViteConfig(projectPath);
-      
       // Create a new terminal for Slidev
       this.slidevTerminal = vscode.window.createTerminal('Slidev');
       this.logger.debug('Created Slidev terminal');
