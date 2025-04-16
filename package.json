@@ -2,7 +2,7 @@
   "name": "slidev-copilot",
   "displayName": "Slidev Copilot",
   "description": "Generate Slidev presentations from chat contexts",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "publisher": "robothy",
   "icon": "media/icon.png",
   "repository": {
