@@ -28,7 +28,7 @@
         "id": "slidev-copilot",
         "fullName": "Slidev Copilot",
         "name": "slidev",
-        "description": "Generate a Slidev presentation from chat contexts",
+        "description": "Generate a Slidev presentation with VSCode Chat",
         "isSticky": true
       }
     ],
