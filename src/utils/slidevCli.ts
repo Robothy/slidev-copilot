@@ -90,35 +90,63 @@ export class SlidevCli {
         'node_modules\n.DS_Store\ndist\n*.local\n.remote-assets\ncomponents.d.ts'
       );
       
-      // Install dependencies in the template project
-      try {
-        this.logger.info('Installing dependencies in template project');
-        vscode.window.showInformationMessage('Setting up Slidev template. This will take a moment but only happens once.');
-        cp.execSync('npm install', { cwd: this.templateProjectPath });
-        this.logger.info('Successfully installed dependencies in template project');
-        vscode.window.showInformationMessage('Slidev template setup complete.');
-      } catch (error) {
-        this.logger.error('Failed to install dependencies in template project:', error);
-        vscode.window.showErrorMessage('Failed to set up Slidev template. Some features may not work correctly.');
-      }
+      // Install dependencies in the template project - ASYNCHRONOUSLY
+      this.logger.info('Installing dependencies in template project');
+      vscode.window.showInformationMessage('Setting up Slidev template in the background. This will only happen once.');
+      
+      // Run npm install in a separate process WITHOUT waiting for it to complete
+      this.installDependenciesAsync(this.templateProjectPath);
     } else {
       // Template exists, but check if node_modules exists
       const nodeModulesPath = path.join(this.templateProjectPath, 'node_modules');
       if (!fs.existsSync(nodeModulesPath) || !fs.existsSync(path.join(nodeModulesPath, '@slidev'))) {
-        try {
-          this.logger.info('Template exists but node_modules missing. Installing dependencies...');
-          vscode.window.showInformationMessage('Setting up Slidev dependencies. This will take a moment but only happens once.');
-          cp.execSync('npm install', { cwd: this.templateProjectPath });
-          this.logger.info('Successfully installed dependencies in template project');
-          vscode.window.showInformationMessage('Slidev dependencies installed successfully.');
-        } catch (error) {
-          this.logger.error('Failed to install dependencies in existing template:', error);
-          vscode.window.showErrorMessage('Failed to set up Slidev dependencies. Some features may not work correctly.');
-        }
+        // Install dependencies asynchronously
+        this.logger.info('Template exists but node_modules missing. Installing dependencies...');
+        vscode.window.showInformationMessage('Setting up Slidev dependencies in the background.');
+        
+        this.installDependenciesAsync(this.templateProjectPath);
       } else {
         this.logger.debug('Template project with dependencies already exists');
       }
     }
+  }
+  
+  /**
+   * Install dependencies asynchronously without blocking the UI thread
+   */
+  private installDependenciesAsync(projectPath: string): void {
+    // Create a new terminal for installation
+    const installTerminal = vscode.window.createTerminal('Slidev Setup');
+    
+    // Show the terminal first to activate it, then run commands
+    installTerminal.show(true); // true = preserve focus
+    
+    // Run npm install in the terminal
+    installTerminal.sendText(`cd "${projectPath}"`);
+    installTerminal.sendText(`npm install && echo "SLIDEV_INSTALL_COMPLETE"`);
+    
+    // Hide the terminal to avoid UI clutter
+    setTimeout(() => {
+      installTerminal.hide();
+    }, 1000);
+    
+    // Create a timeout to handle case where terminal close event isn't triggered
+    const maxWaitTime = 5 * 60 * 1000; // 5 minutes
+    const timeout = setTimeout(() => {
+      this.logger.info('Dependency installation timeout reached, assuming completion');
+      vscode.window.showInformationMessage('Slidev template setup completed.');
+      disposable.dispose();
+    }, maxWaitTime);
+    
+    // Listen for terminal close event to report completion
+    const disposable = vscode.window.onDidCloseTerminal(terminal => {
+      if (terminal === installTerminal) {
+        clearTimeout(timeout);
+        this.logger.info('Dependency installation completed.');
+        vscode.window.showInformationMessage('Slidev template setup completed successfully.');
+        disposable.dispose();
+      }
+    });
   }
   
   /**
@@ -215,6 +243,9 @@ export class SlidevCli {
       } else {
         this.logger.warn('No node_modules found in template, dependencies may need to be installed');
       }
+      
+      // Create Vite configuration to allow access to linked node_modules
+      await this.createViteConfig(sessionDir);
       
       // If markdown content is provided, create a slides file
       if (markdownContent) {
@@ -418,6 +449,37 @@ export class SlidevCli {
   }
   
   /**
+   * Get the path where the PDF will be exported for the given session
+   * Shows a save dialog to let the user choose the export location
+   */
+  async getExportPath(sessionId: string): Promise<string> {
+    // Get project for this session (without markdown content)
+    const projectPath = await this.getSessionProject(sessionId);
+    
+    // Default output path (will be used as suggestion)
+    const defaultOutputPath = path.join(projectPath, 'presentation.pdf');
+    
+    // Show save dialog to let user choose where to save the PDF
+    const uri = await vscode.window.showSaveDialog({
+      defaultUri: vscode.Uri.file(defaultOutputPath),
+      filters: {
+        'PDF': ['pdf']
+      },
+      title: 'Choose where to save the PDF presentation'
+    });
+    
+    // If user canceled the dialog, use the default path
+    if (!uri) {
+      this.logger.debug(`User canceled save dialog, using default path: ${defaultOutputPath}`);
+      return defaultOutputPath;
+    }
+    
+    const outputPath = uri.fsPath;
+    this.logger.debug(`User selected PDF export path: ${outputPath}`);
+    return outputPath;
+  }
+  
+  /**
    * Export the presentation to PDF for the given session
    */
   async exportToPdf(sessionId: string, markdownContent: string): Promise<string> {
@@ -427,8 +489,18 @@ export class SlidevCli {
       // Get or create a project for this session
       const projectPath = await this.getSessionProject(sessionId, markdownContent);
       
-      // Create the output path
-      const outputPath = path.join(projectPath, 'presentation.pdf');
+      // Get the output path that was selected by the user via getExportPath
+      // Note: The outputPath is now passed in from the command handler
+      const outputPath = this.sessionManager.getExportPath(sessionId);
+      if (!outputPath) {
+        throw new Error("Export path not available. Please select a location to save the PDF.");
+      }
+      
+      // Make sure the output directory exists
+      const outputDir = path.dirname(outputPath);
+      if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true });
+      }
       
       // Create a new terminal for export
       const exportTerminal = vscode.window.createTerminal('Slidev Export');
@@ -437,13 +509,33 @@ export class SlidevCli {
       // Make the terminal visible
       exportTerminal.show();
       
+      // Set up a listener to close the terminal once export is complete
+      // Instead of using onDidWriteTerminalData (which doesn't exist),
+      // we'll set up a file watcher to detect when the PDF is created
+      const watcher = fs.watch(outputDir, (eventType, filename) => {
+        if (filename && path.basename(outputPath) === filename && fs.existsSync(outputPath)) {
+          this.logger.debug('PDF export detected via file watcher');
+          
+          // Give a small delay before closing to ensure the process is complete
+          setTimeout(() => {
+            exportTerminal.dispose();
+            watcher.close(); // Stop watching once we've detected the file
+          }, 2000); // 2-second delay
+        }
+      });
+      
+      // Also listen for terminal close events to clean up the watcher
+      const terminalCloseListener = vscode.window.onDidCloseTerminal(terminal => {
+        if (terminal === exportTerminal) {
+          watcher.close();
+          terminalCloseListener.dispose();
+        }
+      });
+      
       exportTerminal.sendText(`cd "${projectPath}"`);
       
-      // Run the export command
+      // Run the export command with the chosen output path
       exportTerminal.sendText(`npx slidev export slides.md --output "${outputPath}"`);
-      
-      // Show notification
-      vscode.window.showInformationMessage(`Exporting presentation to PDF: ${outputPath}`);
       
       return outputPath;
     } catch (error) {

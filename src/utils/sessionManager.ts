@@ -44,6 +44,9 @@ export class SessionManager {
   // Marker for embedding session ID in responses
   public readonly SESSION_ID_MARKER = '<!-- session-id:';
 
+  // Track the export paths for PDFs by session ID
+  private exportPaths = new Map<string, string>();
+
   private constructor() {
     this.sessions = new Map<string, ChatSession>();
     this.logger = Logger.getInstance();
@@ -238,6 +241,25 @@ export class SessionManager {
    */
   public getLastPresentationPath(sessionId: string): string | undefined {
     return this.sessions.get(sessionId)?.lastPresentationPath;
+  }
+
+  /**
+   * Store the export path for a specific session
+   * @param sessionId The session ID
+   * @param path The export path
+   */
+  updateExportPath(sessionId: string, path: string): void {
+    this.exportPaths.set(sessionId, path);
+    this.logger.debug(`Updated export path for session ${sessionId}: ${path}`);
+  }
+
+  /**
+   * Get the export path for a specific session
+   * @param sessionId The session ID
+   * @returns The export path or undefined if not set
+   */
+  getExportPath(sessionId: string): string | undefined {
+    return this.exportPaths.get(sessionId);
   }
 
   /**

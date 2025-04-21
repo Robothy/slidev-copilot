@@ -60,12 +60,52 @@ export function activate(context: vscode.ExtensionContext) {
       }),
       vscode.commands.registerCommand('slidev-copilot.exportSlides', async (sessionId: string, content: string) => {
         try {
-          const outputPath = await slidevCli.exportToPdf(sessionId, content);
-          vscode.window.showInformationMessage(`Presentation exported to ${outputPath}`, 'Open').then(action => {
-            if (action === 'Open') {
-              vscode.env.openExternal(vscode.Uri.file(outputPath));
+          // Let user choose where to save the PDF
+          const outputPath = await slidevCli.getExportPath(sessionId);
+          
+          // Store the selected path in the session manager
+          sessionManager.updateExportPath(sessionId, outputPath);
+          
+          vscode.window.showInformationMessage(`Exporting presentation to PDF at: ${outputPath}. Please wait...`);
+          
+          // Start the export process
+          await slidevCli.exportToPdf(sessionId, content);
+          
+          // Monitor for the completion of the export process
+          const checkFileExistsAndNotify = async () => {
+            try {
+              // Check if the file exists and has content
+              const stat = await vscode.workspace.fs.stat(vscode.Uri.file(outputPath));
+              if (stat.size > 0) {
+                // File exists and has content, show the success message with Open button
+                vscode.window.showInformationMessage(`Presentation exported to ${outputPath}`, 'Open').then(action => {
+                  if (action === 'Open') {
+                    vscode.env.openExternal(vscode.Uri.file(outputPath));
+                  }
+                });
+                return true; // Export complete
+              }
+            } catch (err) {
+              // File doesn't exist yet or other error
+              logger.debug(`Waiting for export to complete: ${err}`);
             }
-          });
+            return false; // Export not complete yet
+          };
+          
+          // Check immediately, then poll every second
+          if (!(await checkFileExistsAndNotify())) {
+            const interval = setInterval(async () => {
+              if (await checkFileExistsAndNotify()) {
+                clearInterval(interval);
+              }
+            }, 1000);
+            
+            // Set a timeout of 3 minutes to prevent infinite polling
+            setTimeout(() => {
+              clearInterval(interval);
+              logger.warn('PDF export timeout reached');
+            }, 3 * 60 * 1000);
+          }
         } catch (error) {
           vscode.window.showErrorMessage(`Failed to export presentation: ${error}`);
         }
