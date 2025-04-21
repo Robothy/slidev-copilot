@@ -59,11 +59,11 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "webpack --mode production",
-    "compile": "webpack --mode development",
+    "vscode:prepublish": "webpack --mode production --config webpack.config.cjs",
+    "compile": "webpack --mode development --config webpack.config.cjs",
     "compile:test": "tsc -p ./tsconfig.test.json",
-    "watch": "webpack --watch --mode development",
-    "webpack": "webpack --mode production",
+    "watch": "webpack --watch --mode development --config webpack.config.cjs",
+    "webpack": "webpack --mode production --config webpack.config.cjs",
     "pretest": "npm run compile:test",
     "lint": "eslint src --fix --ext ts",
     "test": "vitest run",
