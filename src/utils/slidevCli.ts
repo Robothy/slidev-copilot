@@ -90,35 +90,49 @@ export class SlidevCli {
         'node_modules\n.DS_Store\ndist\n*.local\n.remote-assets\ncomponents.d.ts'
       );
       
-      // Install dependencies in the template project
-      try {
-        this.logger.info('Installing dependencies in template project');
-        vscode.window.showInformationMessage('Setting up Slidev template. This will take a moment but only happens once.');
-        cp.execSync('npm install', { cwd: this.templateProjectPath });
-        this.logger.info('Successfully installed dependencies in template project');
-        vscode.window.showInformationMessage('Slidev template setup complete.');
-      } catch (error) {
-        this.logger.error('Failed to install dependencies in template project:', error);
-        vscode.window.showErrorMessage('Failed to set up Slidev template. Some features may not work correctly.');
-      }
+      // Install dependencies in the template project - ASYNCHRONOUSLY
+      this.logger.info('Installing dependencies in template project');
+      vscode.window.showInformationMessage('Setting up Slidev template in the background. This will only happen once.');
+      
+      // Run npm install in a separate process WITHOUT waiting for it to complete
+      this.installDependenciesAsync(this.templateProjectPath);
     } else {
       // Template exists, but check if node_modules exists
       const nodeModulesPath = path.join(this.templateProjectPath, 'node_modules');
       if (!fs.existsSync(nodeModulesPath) || !fs.existsSync(path.join(nodeModulesPath, '@slidev'))) {
-        try {
-          this.logger.info('Template exists but node_modules missing. Installing dependencies...');
-          vscode.window.showInformationMessage('Setting up Slidev dependencies. This will take a moment but only happens once.');
-          cp.execSync('npm install', { cwd: this.templateProjectPath });
-          this.logger.info('Successfully installed dependencies in template project');
-          vscode.window.showInformationMessage('Slidev dependencies installed successfully.');
-        } catch (error) {
-          this.logger.error('Failed to install dependencies in existing template:', error);
-          vscode.window.showErrorMessage('Failed to set up Slidev dependencies. Some features may not work correctly.');
-        }
+        // Install dependencies asynchronously
+        this.logger.info('Template exists but node_modules missing. Installing dependencies...');
+        vscode.window.showInformationMessage('Setting up Slidev dependencies in the background.');
+        
+        this.installDependenciesAsync(this.templateProjectPath);
       } else {
         this.logger.debug('Template project with dependencies already exists');
       }
     }
+  }
+  
+  /**
+   * Install dependencies asynchronously without blocking the UI thread
+   */
+  private installDependenciesAsync(projectPath: string): void {
+    // Create a new terminal for installation
+    const installTerminal = vscode.window.createTerminal('Slidev Setup');
+    
+    // Hide the terminal to avoid UI clutter
+    // Uncomment the next line if you want to show the terminal
+    // installTerminal.show();
+    
+    // Run npm install in the terminal
+    installTerminal.sendText(`cd "${projectPath}" && npm install`);
+    
+    // Listen for terminal close event to report completion
+    const disposable = vscode.window.onDidCloseTerminal(terminal => {
+      if (terminal === installTerminal) {
+        this.logger.info('Dependency installation completed.');
+        vscode.window.showInformationMessage('Slidev template setup completed successfully.');
+        disposable.dispose();
+      }
+    });
   }
   
   /**
@@ -215,6 +229,9 @@ export class SlidevCli {
       } else {
         this.logger.warn('No node_modules found in template, dependencies may need to be installed');
       }
+      
+      // Create Vite configuration to allow access to linked node_modules
+      await this.createViteConfig(sessionDir);
       
       // If markdown content is provided, create a slides file
       if (markdownContent) {
