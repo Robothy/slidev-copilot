@@ -1,7 +1,7 @@
 {
   "name": "slidev-copilot",
   "displayName": "Slidev Copilot",
-  "description": "Generate Slidev presentations from chat contexts",
+  "description": "Generate a Slidev presentation with VSCode Chat",
   "version": "0.1.4",
   "publisher": "robothy",
   "icon": "media/icon.png",
@@ -22,7 +22,7 @@
     "onView:chat"
   ],
   "main": "./dist/extension.js",
-  "type": "module",
+  "type": "commonjs",
   "contributes": {
     "chatParticipants": [
       {
