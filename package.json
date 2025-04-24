@@ -68,6 +68,8 @@
     "lint": "eslint src --fix --ext ts",
     "test": "vitest run",
     "test:watch": "vitest",
+    "prepare-template": "node scripts/prepare-template.js",
+    "prepackage": "npm run prepare-template",
     "package": "vsce package --out out"
   },
   "devDependencies": {
@@ -91,8 +93,8 @@
   "dependencies": {
     "@slidev/cli": "^51.5.0",
     "@vscode/prompt-tsx": "^0.3.0-alpha.23",
-    "playwright-chromium": "^1.52.0",
-    "@vscode/vsce": "^3.3.2"
+    "@vscode/vsce": "^3.3.2",
+    "playwright-chromium": "^1.52.0"
   },
   "bundledDependencies": [
     "@vscode/prompt-tsx",
