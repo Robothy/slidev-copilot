@@ -51,64 +51,71 @@ export class SlidevCli {
       fs.mkdirSync(resourcesDir, { recursive: true });
     }
     
-    // Create the template project directory if it doesn't exist
+    // Check if the template project directory exists with dependencies
+    const nodeModulesPath = path.join(this.templateProjectPath, 'node_modules');
+    const slidevCliPath = path.join(nodeModulesPath, '@slidev', 'cli');
+    
     if (!fs.existsSync(this.templateProjectPath)) {
+      // Template directory doesn't exist, create minimal structure
       fs.mkdirSync(this.templateProjectPath, { recursive: true });
-      
-      // Create a package.json file
-      const packageJson = {
-        "name": "slidev-template",
-        "private": true,
-        "type": "module",
-        "scripts": {
-          "dev": "slidev",
-          "build": "slidev build",
-          "export": "slidev export"
-        },
-        "dependencies": {
-          "@slidev/cli": "^0.42.0",
-          "@slidev/theme-default": "^0.21.2",
-          "@slidev/theme-seriph": "^0.21.3"
-        },
-        "devDependencies": {
-          "playwright-chromium": "^1.40.0"  // Pre-install for PDF export
-        }
-      };
-      
-      fs.writeFileSync(
-        path.join(this.templateProjectPath, 'package.json'), 
-        JSON.stringify(packageJson, null, 2)
-      );
-      
-      // Create empty folders for assets and components
-      fs.mkdirSync(path.join(this.templateProjectPath, 'assets'), { recursive: true });
-      fs.mkdirSync(path.join(this.templateProjectPath, 'components'), { recursive: true });
-      
-      // Create a basic .gitignore
-      fs.writeFileSync(
-        path.join(this.templateProjectPath, '.gitignore'),
-        'node_modules\n.DS_Store\ndist\n*.local\n.remote-assets\ncomponents.d.ts'
-      );
-      
-      // Install dependencies in the template project - ASYNCHRONOUSLY
-      this.logger.info('Installing dependencies in template project');
-      vscode.window.showInformationMessage('Setting up Slidev template in the background. This will only happen once.');
-      
-      // Run npm install in a separate process WITHOUT waiting for it to complete
+      this.createMinimalTemplateProject();
+    } else if (!fs.existsSync(slidevCliPath)) {
+      // Template exists but dependencies are missing
+      this.logger.info('Template exists but node_modules missing or incomplete. Installing dependencies...');
+      vscode.window.showInformationMessage('Setting up Slidev dependencies in the background.');
       this.installDependenciesAsync(this.templateProjectPath);
     } else {
-      // Template exists, but check if node_modules exists
-      const nodeModulesPath = path.join(this.templateProjectPath, 'node_modules');
-      if (!fs.existsSync(nodeModulesPath) || !fs.existsSync(path.join(nodeModulesPath, '@slidev'))) {
-        // Install dependencies asynchronously
-        this.logger.info('Template exists but node_modules missing. Installing dependencies...');
-        vscode.window.showInformationMessage('Setting up Slidev dependencies in the background.');
-        
-        this.installDependenciesAsync(this.templateProjectPath);
-      } else {
-        this.logger.debug('Template project with dependencies already exists');
-      }
+      this.logger.debug('Using pre-packaged template project with dependencies');
     }
+  }
+  
+  /**
+   * Create a minimal template project structure if not pre-packaged
+   */
+  private createMinimalTemplateProject(): void {
+    this.logger.info('Creating minimal template project structure');
+    
+    // Create a package.json file
+    const packageJson = {
+      "name": "slidev-template",
+      "private": true,
+      "type": "module",
+      "scripts": {
+        "dev": "slidev",
+        "build": "slidev build",
+        "export": "slidev export"
+      },
+      "dependencies": {
+        "@slidev/cli": "^0.42.0",
+        "@slidev/theme-default": "^0.21.2",
+        "@slidev/theme-seriph": "^0.21.3"
+      },
+      "devDependencies": {
+        "playwright-chromium": "^1.40.0"  // Pre-install for PDF export
+      }
+    };
+    
+    fs.writeFileSync(
+      path.join(this.templateProjectPath, 'package.json'), 
+      JSON.stringify(packageJson, null, 2)
+    );
+    
+    // Create empty folders for assets and components
+    fs.mkdirSync(path.join(this.templateProjectPath, 'assets'), { recursive: true });
+    fs.mkdirSync(path.join(this.templateProjectPath, 'components'), { recursive: true });
+    
+    // Create a basic .gitignore
+    fs.writeFileSync(
+      path.join(this.templateProjectPath, '.gitignore'),
+      'node_modules\n.DS_Store\ndist\n*.local\n.remote-assets\ncomponents.d.ts'
+    );
+    
+    // Install dependencies in the template project - ASYNCHRONOUSLY
+    this.logger.info('Installing dependencies in template project');
+    vscode.window.showInformationMessage('Setting up Slidev template in the background. This will only happen once.');
+    
+    // Run npm install in a separate process WITHOUT waiting for it to complete
+    this.installDependenciesAsync(this.templateProjectPath);
   }
   
   /**

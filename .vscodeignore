@@ -19,3 +19,4 @@ vsc-extension-quickstart.md
 dist/**/*.map
 
 .slidev/**
+!resources/slidev-template/**
