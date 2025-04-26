@@ -2,7 +2,7 @@
   "name": "slidev-copilot",
   "displayName": "Slidev Copilot",
   "description": "Generate a Slidev presentation with VSCode Chat",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "publisher": "robothy",
   "icon": "media/icon.png",
   "repository": {
